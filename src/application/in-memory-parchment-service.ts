@@ -1,12 +1,14 @@
 import {ParchmentService} from "./parchment-service";
-import {Page,NotebookPage,LooseLeafPage} from "../domain/page";
+import {Page,NotebookPage,LooseLeafPage,ClipGroupPage} from "../domain/page";
 import {TextBlock} from "../domain/text-block";
 import {Notebook} from "../domain/notebook";
+import { ClipGroup } from "../domain/clipgroup";
 
 
 export class InMemoryParchmentService implements ParchmentService {
     private notebooks: Map<string, Notebook> = new Map();
     private pages: Map<string,Page> = new Map();
+    private clipGroups: Map<string, ClipGroup> = new Map();
     private trimBlocksToFit(
         blocks: TextBlock[],
         maxCharacterCount: number
@@ -50,6 +52,13 @@ export class InMemoryParchmentService implements ParchmentService {
         }
         return page;
     }
+    private requireLooseLeafPage(pageId: string): LooseLeafPage {
+        const page = this.pages.get(pageId);
+        if (!page || page.kind !== "loose-leaf-page") {
+            throw new Error(`Page with id ${pageId} is not a loose-leaf page.`);
+        }
+        return page;
+    }
     private requireNotebookByPage(page: NotebookPage): Notebook {
         const notebook = this.notebooks.get(page.notebookId);
         if (!notebook) {
@@ -67,7 +76,18 @@ export class InMemoryParchmentService implements ParchmentService {
             throw new Error(`Notebook with id ${notebookId} already exists.`);
         }
     }
-    
+    private requireUniqueClipGroupId(clipGroupId: string): void {
+        if (this.clipGroups.has(clipGroupId)) {
+            throw new Error(`Clip group with id ${clipGroupId} already exists.`);
+        }
+    }
+    private requireClipGroup(clipGroupId: string): ClipGroup {
+        const clipGroup = this.clipGroups.get(clipGroupId);
+        if (!clipGroup) {
+            throw new Error(`Clip group with id ${clipGroupId} not found.`);
+        }
+        return clipGroup;
+    }
     createNotebook(notebookId: string): void {
         this.requireUniqueNotebookId(notebookId);
         const newNotePages: NotebookPage[] = [];
@@ -104,6 +124,14 @@ export class InMemoryParchmentService implements ParchmentService {
         };
         this.registerPage(page);
     }
+    createClipGroup(clipGroupId: string): void {
+        this.requireUniqueClipGroupId(clipGroupId);
+        const newClipGroup: ClipGroup = {
+            id: clipGroupId,
+            pages: []
+        };
+        this.clipGroups.set(newClipGroup.id, newClipGroup);
+    }
 
     updatePage(pageId: string, blocks: TextBlock[]): void {
         const thePage=this.pages.get(pageId);
@@ -127,5 +155,19 @@ export class InMemoryParchmentService implements ParchmentService {
             kind: "loose-leaf-page"
         };
         this.registerPage(newLooseLeafPage);
+    }
+    clipLooseleaf(pageId: string, clipGroupId: string): void {
+        const page=this.requireLooseLeafPage(pageId);
+        const clipGroup = this.requireClipGroup(clipGroupId);
+        const newClipGroupPage: ClipGroupPage={
+            id: page.id,
+            blocks: page.blocks,
+            maxCharacterCount: page.maxCharacterCount,
+            kind: "clip-group-page",
+            clipGroupId: clipGroupId
+        };
+        this.unregisterPage(pageId);
+        this.registerPage(newClipGroupPage);
+        clipGroup.pages.push(newClipGroupPage);
     }
 }

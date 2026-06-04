@@ -16,5 +16,10 @@ export type LooseLeafPage = BasePage & {
     readonly kind: "loose-leaf-page";
 };
 
+export type ClipGroupPage = BasePage & {
+    readonly kind: "clip-group-page";
+    readonly clipGroupId: string;
+};
 
-export type Page = NotebookPage | LooseLeafPage;
+
+export type Page = NotebookPage | LooseLeafPage | ClipGroupPage;
