@@ -1,0 +1,5 @@
+.superpowers/
+*.log
+*.tmp
+dist/
+node_modules/
