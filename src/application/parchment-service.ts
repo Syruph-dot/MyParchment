@@ -5,4 +5,5 @@ export interface ParchmentService {
     getPage(pageId: string): Page | undefined;
     createLooseLeafPage(pageId: string, blocks: TextBlock[], maxCharacterCount: number): void;
     updatePage(pageId: string, blocks: TextBlock[]): void;
+    tearOutPage(pageId: string): void;
 }

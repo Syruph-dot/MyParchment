@@ -39,7 +39,37 @@ export class InMemoryParchmentService implements ParchmentService {
     private registerPage(page: Page): void {
         this.pages.set(page.id, page);
     }
+    private unregisterPage(pageId: string): void {
+        this.pages.delete(pageId);
+    }
+
+    private requireNotebookPage(pageId: string): NotebookPage {
+        const page = this.pages.get(pageId);
+        if (!page || page.kind !== "notebook-page") {
+            throw new Error(`Page with id ${pageId} is not a notebook page.`);
+        }
+        return page;
+    }
+    private requireNotebookByPage(page: NotebookPage): Notebook {
+        const notebook = this.notebooks.get(page.notebookId);
+        if (!notebook) {
+            throw new Error(`Notebook with id ${page.notebookId} not found.`);
+        }
+        return notebook;
+    }
+    private requireUniquePageId(pageId: string): void {
+        if (this.pages.has(pageId)) {
+            throw new Error(`Page with id ${pageId} already exists.`);
+        }
+    }
+    private requireUniqueNotebookId(notebookId: string): void {
+        if (this.notebooks.has(notebookId)) {
+            throw new Error(`Notebook with id ${notebookId} already exists.`);
+        }
+    }
+    
     createNotebook(notebookId: string): void {
+        this.requireUniqueNotebookId(notebookId);
         const newNotePages: NotebookPage[] = [];
         for (let i=0;i<60;i++){
             const page: NotebookPage={
@@ -65,6 +95,7 @@ export class InMemoryParchmentService implements ParchmentService {
     }
 
     createLooseLeafPage(pageId: string, blocks: TextBlock[], maxCharacterCount: number): void {
+        this.requireUniquePageId(pageId);
         const page: LooseLeafPage = {
             id: pageId,
             blocks: this.trimBlocksToFit(blocks, maxCharacterCount),
@@ -85,6 +116,16 @@ export class InMemoryParchmentService implements ParchmentService {
         }
         
     }
-    
-
+    tearOutPage(pageId: string): void {
+        const page = this.requireNotebookPage(pageId);
+        const notebook = this.requireNotebookByPage(page);
+        notebook.pages=notebook.pages.filter(p=>p.id!==pageId);
+        const newLooseLeafPage: LooseLeafPage={
+            id: page.id,
+            blocks: page.blocks,
+            maxCharacterCount: page.maxCharacterCount,
+            kind: "loose-leaf-page"
+        };
+        this.registerPage(newLooseLeafPage);
+    }
 }
