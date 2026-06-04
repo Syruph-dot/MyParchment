@@ -1,7 +1,11 @@
 import {ParchmentService} from "./parchment-service";
-import {Page} from "../domain/page";
+import {Page,NotebookPage,LooseLeafPage} from "../domain/page";
 import {TextBlock} from "../domain/text-block";
+import {Notebook} from "../domain/notebook";
+
+
 export class InMemoryParchmentService implements ParchmentService {
+    private notebooks: Map<string, Notebook> = new Map();
     private pages: Map<string,Page> = new Map();
     private trimBlocksToFit(
         blocks: TextBlock[],
@@ -32,23 +36,54 @@ export class InMemoryParchmentService implements ParchmentService {
 
         return trimmedBlocks;
     }
-
-    createNotebook(): string {
-        return "notebook-1";
+    private registerPage(page: Page): void {
+        this.pages.set(page.id, page);
     }
+    createNotebook(notebookId: string): void {
+        const newNotePages: NotebookPage[] = [];
+        for (let i=0;i<60;i++){
+            const page: NotebookPage={
+                id: `notebook-${notebookId}-page-${i}`,
+                blocks: [],
+                maxCharacterCount: 2000,
+                kind: "notebook-page",
+                notebookId: notebookId,
+                slotIndex: i,
+            }
+            newNotePages.push(page);
+            this.registerPage(page);
+        }
+        const notebook: Notebook={
+            id: notebookId,
+            pages: newNotePages,
+        }
+        this.notebooks.set(notebook.id, notebook);
+    }
+    
     getPage(pageId: string): Page | undefined {
         return this.pages.get(pageId);
     }
-    updatePage(pageId: string, blocks: TextBlock[]): void {
-        const maxCharacterCount = this.pages.get(pageId)?.maxCharacterCount || 2000;
-        const trimmedBlocks = this.trimBlocksToFit(blocks, maxCharacterCount);
-        const page: Page = {
-            id: pageId,
-            blocks: trimmedBlocks,
-            maxCharacterCount,
-        };
 
-        this.pages.set(pageId, page);
+    createLooseLeafPage(pageId: string, blocks: TextBlock[], maxCharacterCount: number): void {
+        const page: LooseLeafPage = {
+            id: pageId,
+            blocks: this.trimBlocksToFit(blocks, maxCharacterCount),
+            maxCharacterCount: maxCharacterCount,
+            kind: "loose-leaf-page"
+        };
+        this.registerPage(page);
+    }
+
+    updatePage(pageId: string, blocks: TextBlock[]): void {
+        const thePage=this.pages.get(pageId);
+        if (!thePage){
+            console.warn(`Page with id ${pageId} not found. Update operation skipped.`);
+            return;
+        }else{
+            const trimmedBlocks = this.trimBlocksToFit(blocks, thePage.maxCharacterCount);
+            thePage.blocks = trimmedBlocks;
+        }
+        
     }
     
 

@@ -1,5 +1,5 @@
-import {Page} from "./page";
+import {NotebookPage} from "./page";
 export type Notebook={
     readonly id: string;
-    pages: Page[];
+    pages: NotebookPage[];
 };
