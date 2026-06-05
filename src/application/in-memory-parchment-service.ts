@@ -44,11 +44,37 @@ export class InMemoryParchmentService implements ParchmentService {
     private unregisterPage(pageId: string): void {
         this.pages.delete(pageId);
     }
+    private disassembleNotebook(notebook: Notebook): void {
+        for (const page of notebook.pages){
+            const newLooseLeafPage: LooseLeafPage={
+            id: page.id,
+            blocks: page.blocks,
+            maxCharacterCount: page.maxCharacterCount,
+            kind: "loose-leaf-page"
+            };
+            this.registerPage(newLooseLeafPage);
+        }
+        this.notebooks.delete(notebook.id);
+    }
 
+    private requireNotebook(notebookId: string): Notebook {
+        const notebook = this.notebooks.get(notebookId);
+        if (!notebook) {
+            throw new Error(`Notebook with id ${notebookId} not found.`);
+        }
+        return notebook;
+    }
     private requireNotebookPage(pageId: string): NotebookPage {
         const page = this.pages.get(pageId);
         if (!page || page.kind !== "notebook-page") {
             throw new Error(`Page with id ${pageId} is not a notebook page.`);
+        }
+        return page;
+    }
+    private requireNotebookPageBySlotIndex(notebook: Notebook, slotIndex: number): NotebookPage {
+        const page = notebook.pages.find(p => p.slotIndex === slotIndex);
+        if (!page) {
+            throw new Error(`Page with slot index ${slotIndex} not found in notebook.`);
         }
         return page;
     }
@@ -106,14 +132,31 @@ export class InMemoryParchmentService implements ParchmentService {
         const notebook: Notebook={
             id: notebookId,
             pages: newNotePages,
+            currentPageSlotIndex: 0,
         }
         this.notebooks.set(notebook.id, notebook);
     }
-    
+    goToNextPage(notebookId: string): void {
+        const notebook = this.requireNotebook(notebookId);
+        const page = this.requireNotebookPageBySlotIndex(notebook, notebook.currentPageSlotIndex);
+        notebook.currentPageSlotIndex=notebook.pages[(notebook.pages.indexOf(page)+1)%notebook.pages.length].slotIndex;
+    }
+    goToPrevPage(notebookId: string): void {
+        const notebook = this.requireNotebook(notebookId);
+        const page = this.requireNotebookPageBySlotIndex(notebook, notebook.currentPageSlotIndex);
+        const l=notebook.pages.length
+        notebook.currentPageSlotIndex=notebook.pages[(notebook.pages.indexOf(page)-1+l)%l].slotIndex;
+    }
     getPage(pageId: string): Page | undefined {
         return this.pages.get(pageId);
     }
-
+    getNotebook(notebookId: string): Notebook | undefined {
+        return this.notebooks.get(notebookId);
+    }
+    getCurrentNotebookPage(notebookId: string): NotebookPage | undefined {
+        const notebook = this.requireNotebook(notebookId);
+        return notebook.pages.filter(page => page.slotIndex === notebook.currentPageSlotIndex)[0];
+    }
     createLooseLeafPage(pageId: string, blocks: TextBlock[], maxCharacterCount: number): void {
         this.requireUniquePageId(pageId);
         const page: LooseLeafPage = {
@@ -132,7 +175,9 @@ export class InMemoryParchmentService implements ParchmentService {
         };
         this.clipGroups.set(newClipGroup.id, newClipGroup);
     }
-
+    getClipGroup(clipGroupId: string): ClipGroup | undefined {
+        return this.clipGroups.get(clipGroupId);
+    }
     updatePage(pageId: string, blocks: TextBlock[]): void {
         const thePage=this.pages.get(pageId);
         if (!thePage){
@@ -147,14 +192,18 @@ export class InMemoryParchmentService implements ParchmentService {
     tearOutPage(pageId: string): void {
         const page = this.requireNotebookPage(pageId);
         const notebook = this.requireNotebookByPage(page);
-        notebook.pages=notebook.pages.filter(p=>p.id!==pageId);
-        const newLooseLeafPage: LooseLeafPage={
-            id: page.id,
-            blocks: page.blocks,
-            maxCharacterCount: page.maxCharacterCount,
-            kind: "loose-leaf-page"
-        };
-        this.registerPage(newLooseLeafPage);
+        if (notebook.pages.length>=2){
+            if (notebook.currentPageSlotIndex===page.slotIndex){this.goToNextPage(notebook.id);}
+            notebook.pages=notebook.pages.filter(p=>p.id!==pageId);
+            const newLooseLeafPage: LooseLeafPage={
+                id: page.id,
+                blocks: page.blocks,
+                maxCharacterCount: page.maxCharacterCount,
+                kind: "loose-leaf-page"
+            };
+            this.registerPage(newLooseLeafPage);
+            
+        }else{this.disassembleNotebook(notebook);}
     }
     clipLooseleaf(pageId: string, clipGroupId: string): void {
         const page=this.requireLooseLeafPage(pageId);
