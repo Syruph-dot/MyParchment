@@ -100,5 +100,53 @@ describe("InMemoryParchmentService", () => {
     expect(currentPage?.id).toBe("notebook-nb1-page-0");
     expect(currentPage?.slotIndex).toBe(0);
   });
+
+  it("throws when clipLooseleaf is called on a notebook page", () => {
+    const service = new InMemoryParchmentService();
+
+    service.createNotebook("nb1");
+    service.createClipGroup("cg1");
+
+    expect(() => service.clipLooseleaf("notebook-nb1-page-0", "cg1")).toThrowError();
+  });
+
+  it("returns a clip-group page back to a loose-leaf page when torn out from the clip group", () => {
+    const service = new InMemoryParchmentService();
+
+    service.createNotebook("nb1");
+    service.createClipGroup("cg1");
+    service.tearOutPage("notebook-nb1-page-0");
+    service.clipLooseleaf("notebook-nb1-page-0", "cg1");
+
+    service.tearOutPage("notebook-nb1-page-0");
+
+    const page = service.getPage("notebook-nb1-page-0");
+    const clipGroup = service.getClipGroup("cg1");
+
+    expect(page).toBeDefined();
+    expect(page?.kind).toBe("loose-leaf-page");
+    expect(clipGroup?.pages).toHaveLength(0);
+  });
+
+  it("supports a deterministic notebook-to-loose-leaf-to-clip-group-to-loose-leaf chain", () => {
+    const service = new InMemoryParchmentService();
+
+    service.createNotebook("nb1");
+    service.createClipGroup("cg1");
+
+    service.tearOutPage("notebook-nb1-page-0");
+    expect(service.getPage("notebook-nb1-page-0")?.kind).toBe("loose-leaf-page");
+
+    service.clipLooseleaf("notebook-nb1-page-0", "cg1");
+    expect(service.getPage("notebook-nb1-page-0")?.kind).toBe("clip-group-page");
+
+    service.tearOutPage("notebook-nb1-page-0");
+
+    const page = service.getPage("notebook-nb1-page-0");
+    const clipGroup = service.getClipGroup("cg1");
+
+    expect(page?.kind).toBe("loose-leaf-page");
+    expect(clipGroup?.pages.map((groupPage) => groupPage.id)).not.toContain("notebook-nb1-page-0");
+  });
 });
 

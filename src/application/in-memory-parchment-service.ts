@@ -85,6 +85,13 @@ export class InMemoryParchmentService implements ParchmentService {
         }
         return page;
     }
+    private requireClipGroupPage(pageId: string): ClipGroupPage {
+        const page = this.pages.get(pageId);
+        if (!page || page.kind !== "clip-group-page") {
+            throw new Error(`Page with id ${pageId} is not a clip-group page.`);
+        }
+        return page;
+    }
     private requireNotebookByPage(page: NotebookPage): Notebook {
         const notebook = this.notebooks.get(page.notebookId);
         if (!notebook) {
@@ -189,12 +196,11 @@ export class InMemoryParchmentService implements ParchmentService {
         }
         
     }
-    tearOutPage(pageId: string): void {
-        const page = this.requireNotebookPage(pageId);
+    private convertNotebookPageToLooseLeaf(page: NotebookPage): void {
         const notebook = this.requireNotebookByPage(page);
         if (notebook.pages.length>=2){
             if (notebook.currentPageSlotIndex===page.slotIndex){this.goToNextPage(notebook.id);}
-            notebook.pages=notebook.pages.filter(p=>p.id!==pageId);
+            notebook.pages=notebook.pages.filter(p=>p.id!==page.id);
             const newLooseLeafPage: LooseLeafPage={
                 id: page.id,
                 blocks: page.blocks,
@@ -204,6 +210,35 @@ export class InMemoryParchmentService implements ParchmentService {
             this.registerPage(newLooseLeafPage);
             
         }else{this.disassembleNotebook(notebook);}
+    }
+    private removeClipGroupPageToLooseLeaf(page: ClipGroupPage): void {
+        const clipGroup = this.requireClipGroup(page.clipGroupId);
+        clipGroup.pages = clipGroup.pages.filter(groupPage => groupPage.id !== page.id);
+        const newLooseLeafPage: LooseLeafPage = {
+            id: page.id,
+            blocks: page.blocks,
+            maxCharacterCount: page.maxCharacterCount,
+            kind: "loose-leaf-page"
+        };
+        this.registerPage(newLooseLeafPage);
+    }
+    tearOutPage(pageId: string): void {
+        const page = this.pages.get(pageId);
+        if (!page) {
+            throw new Error(`Page with id ${pageId} not found.`);
+        }
+
+        if (page.kind === "notebook-page") {
+            this.convertNotebookPageToLooseLeaf(this.requireNotebookPage(pageId));
+            return;
+        }
+
+        if (page.kind === "clip-group-page") {
+            this.removeClipGroupPageToLooseLeaf(this.requireClipGroupPage(pageId));
+            return;
+        }
+
+        throw new Error(`Page with id ${pageId} is not a notebook page.`);
     }
     clipLooseleaf(pageId: string, clipGroupId: string): void {
         const page=this.requireLooseLeafPage(pageId);
